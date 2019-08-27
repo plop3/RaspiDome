@@ -8,7 +8,7 @@ Gestion d'un abri roulant pour télescope à l'aide d'un Raspberry Pi 3
 * Affichage de l'heure et des informations météo.
 
 MATERIEL
-* Abri en bois
+* Abri en bois roulant sur rails.
 * 2 vérins électriques pour l'ouverture/fermeture des portes.
 * 1 moteur de porte de garage pour l'ouverture/fermeture de l'abri.
 * 1 accès au réseau par WiFi.
