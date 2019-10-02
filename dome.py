@@ -10,12 +10,18 @@
 # 30/09/2019
 # Version python3 pour Raspberry PI
 
+
+# TODO
+# Remplacer POSDOME par les entrées capteurs
+# Idem pour PORTEOUV
+
 ##### MODULES EXTERNES #####
 import sys
 import socket
 import time
 import threading
 
+## MCP23017
 import board
 import busio
 from adafruit_mcp230xx.mcp23017 import MCP23017
@@ -207,7 +213,23 @@ def DeplaceDome(sens):
 	MOTEUR.value=False	
 	time.sleep(0.6)
 	MOTEUR.value=True
-	# TODO Continuer ici
+	AttendARU(ABRI,True, False)
+	# TODO Supprimer les commentaires ci-dessous
+	##while (not AbriOuvert() and not AbriFerme())
+	##	AttendARU(1,True, False)
+	AttendARU(2, True , False)
+	# TODO Commuter les lignes suivantes (test sans capteurs)
+	POSDOME= not POSDOME
+	# POSDOME = not AbriOuvert()
+	if POSDOME:
+		# Abri ouvert
+		StartTel()
+		time.sleep(0.5)
+	else:
+		# Abri fermé
+		FermePortes()
+		StopMot()
+		time.sleep(0.5)
 	
 def OuvreDome():
 	global POSDOME
