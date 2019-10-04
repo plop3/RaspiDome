@@ -87,6 +87,7 @@ def TelPark():
 	return 1
 
 def AttendARU(delai,park,depl):
+	# TODO Arrêt à distance
 	# TODO compléter
 	time.sleep(delai)
 	
