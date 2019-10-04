@@ -86,10 +86,26 @@ def StopMot():
 def TelPark():
 	return 1
 
+def ARU():
+	# Arret d'urgence
+	# TODO A créer
+	pass
+	
 def AttendARU(delai,park,depl):
 	# TODO Arrêt à distance
 	# TODO compléter
-	time.sleep(delai)
+	nbpark=0
+	errmax=2
+	for i in range(delai):
+		if park:
+			if not TelPark():
+				nbpark=nbpark+1
+			if nbpark > errmax:
+				ARU()
+		if depl:
+			if not AbriFerme() and not AbriOuvert():
+				ARU()
+		time.sleep(1)
 	
 def FermePorte1():
 	board.digital_write(P11,0)
@@ -107,7 +123,7 @@ def CmdTelnet():
 	s.bind(('',1234))
 	s.listen(1)
 	global conn
-	print('****')
+	print('START')
 	while True:
 		conn, addr = s.accept()
 		# Lecture des données sur le port
