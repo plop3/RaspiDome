@@ -14,20 +14,17 @@
 # TODO
 # Remplacer POSDOME par les entrées capteurs
 # Idem pour PORTEOUV
+# AttendARU à faire
 
 ##### MODULES EXTERNES #####
 import sys
 import socket
 import time
 import threading
-
-## MCP23017
-import board
-import busio
-from adafruit_mcp230xx.mcp23017 import MCP23017
-from digitalio import Direction, Pull
-i2c = busio.I2C(board.SCL, board.SDA)
-mcp = MCP23017(i2c,0x24)
+# Firmata
+from pymata_aio.pymata3 import PyMata3
+from pymata_aio.constants import Constants
+board = PyMata3()
 
 ##### PERIPHERIQUES #####
 ##### CONSTANTES #####
@@ -39,52 +36,69 @@ POSDOME=False
 
 
 # Entrées/sorties
-#E = {'AO': 5, 'AF': 7, 'Po1': 4, 'Po2': 0, 'Pf1': 6, 'Pf2': 2}
-E = {'AO': 13, 'AF': 15, 'Po1': 12, 'Po2': 8, 'Pf1': 14, 'Pf2': 10}
-S = {'ALIM12': 2,'ALIMTEL': 3, 'ALIMMOT': 1, 'MOTEUR': 0, 'P11': 4, 'P12': 5, 'P21': 6, 'P22': 7}
+AO=5
+AF=7
+Po1=4
+Po2=0
+Pf1=6
+Pf2=2
+
+ALIM12=4
+ALIMTEL=5
+ALIMMOT=3
+MOTEUR=2
+P11=6
+P12=7
+P21=8
+P22=9
 PARK = 13
+
 # Délais
-D = {'PORTES': 40, 'PORTESCAPTEURS': 30, 'MOTEUR': 40, 'ABRI': 15}
+DPORTES=40
+DPORTESCAPTEURS=30
+DMOTEUR=40
+DABRI=15
 
 PINPARK=True
 
 ##### FONCTIONS #####
 
 def AlimStatus():
-	return not ALIMTEL.value
+	return not board.digital_read(ALIMTEL)
 def PortesOuvert():
-	return (not Po1.value and not Po2.value)
+	return (not board.digital_read(Po1) and not board.digital_read(Po2))
 def PortesFerme():
-	return (not Pf1.value and not Pf2.value)
+	return (not board.digital_read(Pf1) and not board.digital_read(Pf2))
 def AbriFerme():
-	return not AF.value
+	return not board.digital_read(AF)
 def AbriOuvert():
-	return not AO.value
+	return not board.digital_read(AO)
 def MoteurStatus():
-	return not ALIMMOT.value
+	return not board.digital_read(ALIMMOT)
 def StartTel():
-	ALIMTEL.value=False
+	board.digital_write(ALIMTEL,0)
 def StopTel():
-	ALIMTEL.value=True
+	board.digital_write(ALIMTEL,1)
 def StartMot():
-	ALIMMOT.value=False
+	board.digital_write(ALIMMOT,0)
 def StopMot(): 
-	ALIMMOT.value=True
+	board.digital_write(ALIMMOT,1)
 def TelPark():
 	return 1
 
 def AttendARU(delai,park,depl):
+	# TODO compléter
 	time.sleep(delai)
 	
 def FermePorte1():
-	P11.value=False
+	board.digital_write(P11,0)
 	time.sleep(D['PORTES'])
-	P11.value=True
+	board.digital_write(P11,1)
 	
 def OuvrePorte1():
-	P12.value=False
+	board.digital_write(P12,0)
 	time.sleep(D['PORTES'])
-	P12.value=True
+	board.digital_write(P12,1)
 	
 def CmdTelnet():
 	global CMD
@@ -164,17 +178,17 @@ def OuvrePortes():
 		return 0
 	StartMot()
 	Affiche('Ouverture des portes...')
-	P12.value=False
+	board.digital_write(P12,0)
 	Affiche('Ouverture porte 1...')
 	AttendARU(5,False,False)
 	Affiche('Ouverture porte 2...')
-	P22.value=False
+	board.digital_write(P22,0)
 	AttendARU(D['PORTESCAPTEURS'],False,False)
 	#while not PortesOuvert():
 	#	AttendARU(0.1,False,False)
 	AttendARU(5,False,False)
-	P12.value=True
-	P22.value=True
+	board.digital_write(P12,1)
+	board.digital_write(P22,1)
 	Affiche ('Portes ouvertes')
 	PORTEOUV=True
 	return 1
@@ -186,15 +200,16 @@ def FermePortes():
 		return 0
 	StopMot()
 	P21.value=False
+	board.digital_write(P21,0)
 	Affiche('Fermeture des portes...')
 	Affiche('Fermeture porte 2...')
 	AttendARU(5,False,False)
-	P11.value=False
+	board.digital_write(P11,0)
 	Affiche('Fermeture porte 1...')
 	AttendARU(D['PORTES'],False,False)
 	Affiche('Portes fermées')
-	P11.value=True
-	P21.value=True
+	board.digital_write(P11,1)
+	board.digital_write(P21,1)
 	PORTEOUV=False
 	return 1
 	
@@ -207,12 +222,12 @@ def DeplaceDome(sens):
 		if not MoteurStatus():
 			StartMot()
 		OuvrePortes()
-	else if not MoteurStatus():
+	elif not MoteurStatus():
 		StartMot()
 		AttendARU(MOTEUR,True, False)
-	MOTEUR.value=False	
+	board.digital_write(MOTEUR,0)
 	time.sleep(0.6)
-	MOTEUR.value=True
+	board.digital_write(MOTEUR,1)
 	AttendARU(ABRI,True, False)
 	# TODO Supprimer les commentaires ci-dessous
 	##while (not AbriOuvert() and not AbriFerme())
@@ -259,52 +274,28 @@ def FermeDome():
 # Initialisation du port série, du socket
 
 # Entrées
-AO=mcp.get_pin(E['AO'])
-AO.direction=Direction.INPUT
-AO.pull=Pull.UP
-AF=mcp.get_pin(E['AF'])
-AF.direction=Direction.INPUT
-AF.pull=Pull.UP
-Po1=mcp.get_pin(E['Po1'])
-Po1.direction=Direction.INPUT
-Po1.pull=Pull.UP
-Po2=mcp.get_pin(E['Po2'])
-Po2.direction=Direction.INPUT
-Po2.pull=Pull.UP
-Pf1=mcp.get_pin(E['Pf1'])
-Pf1.direction=Direction.INPUT
-Pf1.pull=Pull.UP
-Pf2=mcp.get_pin(E['Pf2'])
-Pf2.direction=Direction.INPUT
-Pf2.pull=Pull.UP
+board.set_pin_mode(AO,Constants.PULLUP)
+board.set_pin_mode(AF,Constants.PULLUP)
+board.set_pin_mode(Po1,Constants.PULLUP)
+board.set_pin_mode(Po2,Constants.PULLUP)
+board.set_pin_mode(Pf1,Constants.PULLUP)
+board.set_pin_mode(Pf2,Constants.PULLUP)
 
 # Sorties
-#S = {'ALIM12': 2,'ALIMTEL': 3, 'ALIMMOT': 1, 'MOTEUR': 0, 'P11': 4, 'P12': 5, 'P21': 6, 'P22': 7}
-ALIM12=mcp.get_pin(S['ALIM12'])
-ALIM12.direction=Direction.OUTPUT
-ALIM12.value=True
-ALIMTEL=mcp.get_pin(S['ALIM12'])
-ALIMTEL.direction=Direction.OUTPUT
-ALIMTEL.value=True
-ALIMMOT=mcp.get_pin(S['ALIMMOT'])
-ALIMMOT.direction=Direction.OUTPUT
-ALIMMOT.value=True
-MOTEUR=mcp.get_pin(S['MOTEUR'])
-MOTEUR.direction=Direction.OUTPUT
-MOTEUR.value=True
-P11=mcp.get_pin(S['P11'])
-P11.direction=Direction.OUTPUT
-P11.value=True
-P12=mcp.get_pin(S['P12'])
-P12.direction=Direction.OUTPUT
-P12.value=True
-P21=mcp.get_pin(S['P21'])
-P21.direction=Direction.OUTPUT
-P21.value=True
-P22=mcp.get_pin(S['P22'])
-P22.direction=Direction.OUTPUT
-P22.value=True
-
+board.set_pin_mode(ALIM12,Constants.OUTPUT)
+board.digital_write(ALIM12,1)
+board.set_pin_mode(ALIMMOT,Constants.OUTPUT)
+board.digital_write(ALIMMOT,1)
+board.set_pin_mode(MOTEUR,Constants.OUTPUT)
+board.digital_write(MOTEUR,1)
+board.set_pin_mode(P11,Constants.OUTPUT)
+board.digital_write(P11,1)
+board.set_pin_made(P12,Constants.OUTPUT)
+board.digital_write(P12,1)
+board.set_pin_mode(P21,Constants.OUTPUT)
+board.digital_write(P21,1)
+board.set_pin_mode(P22,Constants.OUTPUT)
+board.digital_write(P22,1)
 
 # Etat du dome initialisation des interrupteurs
 if AbriOuvert():
