@@ -36,28 +36,29 @@ POSDOME=False
 
 
 # Entrées/sorties
-AO=5
-AF=7
-Po1=4
-Po2=0
-Pf1=6
-Pf2=2
+AO=17
+AF=16
+Po1=18
+Po2=19
+Pf1=20
+Pf2=21
 
-ALIM12=4
-ALIMTEL=5
-ALIMMOT=3
-MOTEUR=2
-P11=6
-P12=7
-P21=8
-P22=9
+MOTEUR=11	
+ALIMMOT=10	
+ALIM12=9	
+ALIMTEL=8	
+P11=7		
+P12=6		
+P21=5		
+P22=4
+
 PARK = 13
 
 # Délais
 DPORTES=40
 DPORTESCAPTEURS=30
 DMOTEUR=40
-DABRI=15
+DABRI=20
 
 PINPARK=True
 
@@ -74,7 +75,7 @@ def AbriFerme():
 def AbriOuvert():
 	return not board.digital_read(AO)
 def MoteurStatus():
-	return not board.digital_read(ALIMMOT)
+	return not board.get_pin_state(ALIMMOT)[2] #board.digital_read(ALIMMOT)
 def StartTel():
 	board.digital_write(ALIMTEL,0)
 def StopTel():
@@ -96,7 +97,7 @@ def AttendARU(delai,park,depl):
 	# TODO compléter
 	nbpark=0
 	errmax=2
-	for i in range(delai):
+	for i in range(0):
 		if park:
 			if not TelPark():
 				nbpark=nbpark+1
@@ -105,16 +106,16 @@ def AttendARU(delai,park,depl):
 		if depl:
 			if not AbriFerme() and not AbriOuvert():
 				ARU()
-		time.sleep(1)
+	time.sleep(delai)
 	
 def FermePorte1():
 	board.digital_write(P11,0)
-	time.sleep(D['PORTES'])
+	time.sleep(DPORTES)
 	board.digital_write(P11,1)
 	
 def OuvrePorte1():
 	board.digital_write(P12,0)
-	time.sleep(D['PORTES'])
+	time.sleep(DPORTES)
 	board.digital_write(P12,1)
 	
 def CmdTelnet():
@@ -200,7 +201,7 @@ def OuvrePortes():
 	AttendARU(5,False,False)
 	Affiche('Ouverture porte 2...')
 	board.digital_write(P22,0)
-	AttendARU(D['PORTESCAPTEURS'],False,False)
+	AttendARU(DPORTESCAPTEURS,False,False)
 	#while not PortesOuvert():
 	#	AttendARU(0.1,False,False)
 	AttendARU(5,False,False)
@@ -216,14 +217,13 @@ def FermePortes():
 		# Les portes sont déjà fermées
 		return 0
 	StopMot()
-	P21.value=False
 	board.digital_write(P21,0)
 	Affiche('Fermeture des portes...')
 	Affiche('Fermeture porte 2...')
 	AttendARU(5,False,False)
 	board.digital_write(P11,0)
 	Affiche('Fermeture porte 1...')
-	AttendARU(D['PORTES'],False,False)
+	AttendARU(DPORTES,False,False)
 	Affiche('Portes fermées')
 	board.digital_write(P11,1)
 	board.digital_write(P21,1)
@@ -231,6 +231,7 @@ def FermePortes():
 	return 1
 	
 def DeplaceDome(sens):
+	global POSDOME
 	if not PINPARK:
 		Affiche("Erreur: télescope non parqué")
 		return False
@@ -241,17 +242,18 @@ def DeplaceDome(sens):
 		OuvrePortes()
 	elif not MoteurStatus():
 		StartMot()
-		AttendARU(MOTEUR,True, False)
+		AttendARU(DMOTEUR,True, False)
+	print('Demarrage moteur')
 	board.digital_write(MOTEUR,0)
 	time.sleep(0.6)
 	board.digital_write(MOTEUR,1)
-	AttendARU(ABRI,True, False)
+	AttendARU(DABRI,True, False)
 	# TODO Supprimer les commentaires ci-dessous
 	##while (not AbriOuvert() and not AbriFerme())
 	##	AttendARU(1,True, False)
 	AttendARU(2, True , False)
 	# TODO Commuter les lignes suivantes (test sans capteurs)
-	POSDOME= not POSDOME
+	POSDOME=not POSDOME
 	# POSDOME = not AbriOuvert()
 	if POSDOME:
 		# Abri ouvert
@@ -301,18 +303,22 @@ board.set_pin_mode(Pf2,Constants.PULLUP)
 # Sorties
 board.set_pin_mode(ALIM12,Constants.OUTPUT)
 board.digital_write(ALIM12,1)
+board.set_pin_mode(ALIMTEL,Constants.OUTPUT)
+board.digital_write(ALIMTEL,1)
 board.set_pin_mode(ALIMMOT,Constants.OUTPUT)
 board.digital_write(ALIMMOT,1)
 board.set_pin_mode(MOTEUR,Constants.OUTPUT)
 board.digital_write(MOTEUR,1)
 board.set_pin_mode(P11,Constants.OUTPUT)
 board.digital_write(P11,1)
-board.set_pin_made(P12,Constants.OUTPUT)
+board.set_pin_mode(P12,Constants.OUTPUT)
 board.digital_write(P12,1)
 board.set_pin_mode(P21,Constants.OUTPUT)
 board.digital_write(P21,1)
 board.set_pin_mode(P22,Constants.OUTPUT)
 board.digital_write(P22,1)
+
+print('Fin setup.')
 
 # Etat du dome initialisation des interrupteurs
 if AbriOuvert():
@@ -322,6 +328,7 @@ if AbriOuvert():
 tkb = threading.Thread(target=CmdTelnet)
 tkb.start()
 time.sleep(2)
+
 
 while True:
 	try:
