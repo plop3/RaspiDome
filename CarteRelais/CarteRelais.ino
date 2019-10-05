@@ -752,16 +752,8 @@ void systemResetCallback()
   isResetting = false;
 }
 
-void InitPinRelais() {
-  // Initialise les relais
-  for (int i=4;i<12;i++) {
-    pinMode(i, OUTPUT);
-    digitalWrite(i,HIGH);
-  }
-}
 void setup()
 {
-  InitPinRelais();
   Firmata.setFirmwareVersion(FIRMATA_FIRMWARE_MAJOR_VERSION, FIRMATA_FIRMWARE_MINOR_VERSION);
 
   Firmata.attach(ANALOG_MESSAGE, analogWriteCallback);
