@@ -5,7 +5,7 @@
 import sys
 import socket
 import time
-import threading
+#import threading
 # Firmata
 from pymata_aio.pymata3 import PyMata3
 from pymata_aio.constants import Constants
@@ -69,19 +69,15 @@ def OuvrePorte1():
 	Pwrite(P12,1)
 	
 def CmdTelnet():
-	global CMD
-	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	s.bind(('',1234))
-	s.listen(1)
 	global conn
-	print('START')
-	while True:
+	try:
 		conn, addr = s.accept()
-		# Lecture des données sur le port
-		if CMD=='':
-			CMD = conn.recv(32)
-		time.sleep(1)
-		
+		CMD = conn.recv(32)
+	except BlockingIOError:
+		return ''
+	else:
+		return CMD
+				
 def EnvoiStatus(ret):
 	conn.sendall(str(int(ret)).encode('utf8'))
 
@@ -116,7 +112,6 @@ def EnvoiCommande(cmd):
 		OuvrePorte1()
 	elif CMD==b'C?':
 		EnvoiStatus(AlimStatus())
-	CMD=''
 	conn.close()
 
 def Debug(message):
@@ -230,6 +225,12 @@ Pinit(P21,Constants.OUTPUT)
 Pwrite(P22,1)
 Pinit(P22,Constants.OUTPUT)
 
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(('',1234))
+s.listen(1)
+s.setblocking(0)
+
 Debug('Fin setup.')
 
 # Etat du dome initialisation des interrupteurs
@@ -237,19 +238,16 @@ if POSDOME:
 	StartTel()
 	StartMot()
 ##### BOUCLE PRINCIPALE #####
-tkb = threading.Thread(target=CmdTelnet)
-tkb.start()
-time.sleep(2)
-
 
 while True:
 	try:
+		CMD = CmdTelnet()
 		if CMD !='':
 			EnvoiCommande(CMD)
 			# MAJEtatPark() # Interruption ?
 			# Dome bouge ?
 			# Bouton arret d'urgence'
-			time.sleep(1)
 	except KeyboardInterrupt:
 		raise
+	time.sleep(0.5)
 
