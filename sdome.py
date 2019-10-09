@@ -9,7 +9,7 @@ import time
 # Firmata
 from pymata_aio.pymata3 import PyMata3
 from pymata_aio.constants import Constants
-board = PyMata3()
+board = PyMata3(com_port='/dev/ttyUSB1')
 
 CMD=''
 PORTEOUV=False
