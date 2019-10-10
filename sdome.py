@@ -345,7 +345,7 @@ Pinit(Po1,Constants.PULLUP)
 Pinit(Po2,Constants.PULLUP)
 Pinit(Pf1,Constants.PULLUP)
 Pinit(Pf2,Constants.PULLUP)
-Pinit(PARK,Constants.INPUT)
+Pinit(PARK-16,Constants.ANALOG)
 
 # Socket de communication réseau
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
