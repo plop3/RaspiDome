@@ -51,6 +51,11 @@ DABRI=22
 def PStatus(pin):
 	if pin<16:
 		return board.get_pin_state(pin)[2]
+	elif pin > 21:
+		if board.analog_read(pin-16)> 300:
+			return True
+		else:
+			return False
 	else:
 		return board.digital_read(pin)
 def Pwrite(pin, etat):
