@@ -104,7 +104,7 @@ def Attend(delai,park,depl,porte):
 	nbpos=0
 	nbporte=0
 	errmax=2
-	while t.is_alive()
+	while t.is_alive():
 		# Surveillance du déplacement
 		if park:
 			if not TelPark():
@@ -120,13 +120,14 @@ def Attend(delai,park,depl,porte):
 				nbpos=0
 			if nbpos > errmax:	
 				ARU('Erreur position abri')
-		if porte:
-			if not PortesOuvert():
-				nbporte+=1
-			else:
-				nbporte=0
-			if nbporte > errmax:
-				ARU('Erreur portes')
+		# TODO Décommenter quand les capteurs portes seront cablés
+		#if porte:
+		#	if not PortesOuvert():
+		#		nbporte+=1
+		#	else:
+		#		nbporte=0
+		#	if nbporte > errmax:
+		#		ARU('Erreur portes')
 		time.sleep(0.1)
 		
 def FermePorte1():
@@ -251,7 +252,7 @@ def FermePortes():
 	
 def DeplaceDome(sens):
 	EtatAbri=AbriFerme()	# Enregistre la position actuelle de l'abri
-	if (not AbriFerme() and nor AbriOuvert()) or (AbriFerme() and AbriOuvert()):
+	if (not AbriFerme() and not AbriOuvert()) or (AbriFerme() and AbriOuvert()):
 		# Problème de capteur
 		Debug('Problème de capteur de position abri')
 		return 0
@@ -268,15 +269,15 @@ def DeplaceDome(sens):
 	time.sleep(0.6)
 	Pwrite(MOTEUR,1)
 	Attend(DABRI,1,0,1)
-	while (not AbriOuvert() and not AbriFerme())
+	while (not AbriOuvert() and not AbriFerme()):
 		Attend(1,True, False, True)
 	if EtatAbri==AbriOuvert():
-		Debug('L'abri ne s'est pas déplacé')
+		Debug("L'abri ne s'est pas déplacé")
 		return 0
 	elif AbriOuvert() or AbriFerme():
 		return 1
 	else:
-		Debug('Position incorrecte de l'abri')
+		Debug("Position incorrecte de l'abri")
 		# Abri ni ouvert, ni fermé :-(
 		return 0
 			
@@ -290,7 +291,7 @@ def OuvreDome():
 		Debug('Dome ouvert')
 		return 1
 	else:
-		Debug('Problème déplacement dome)
+		Debug("Problème déplacement dome")
 		StopTel()
 		return 0
 
@@ -306,7 +307,7 @@ def FermeDome():
 		Debug('Dome fermé')
 		return 1
 	else:
-		Debug('Problème déplacement dome)
+		Debug("Problème déplacement dome")
 		return 0
 	
 ##### SETUP ######
