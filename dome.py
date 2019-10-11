@@ -23,6 +23,14 @@ STB=6
 
 TM=TMBoards(DIO, CLK, STB, 0)
 
+#Adresses I2c
+#26 	LCD
+#27		Clavier matriciel 4x4
+
+APA=18		# LEDs néopixel
+LCDBCK=4	# Rétro-éclairage LCD
+BUZZER=22 	# ou 23 /!\ Pas de Pwm (1 seul canal dispo pour le backlight LCD)
+
 CMD=''
 SERIAL="/dev/MySensors"
 FIRMATA="/dev/Firmata"
