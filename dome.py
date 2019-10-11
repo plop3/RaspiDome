@@ -212,12 +212,12 @@ def EnvoiCommande(cmd,mode):
 	else:
 		if CMD==b'mp':
 			# Ouvre les portes
-			OuvrePorte1():
-			OuvrePorte2():
+			OuvrePorte1()
+			OuvrePorte2()
 		elif CMD==b'md':
 			# Deplace le dome
 			DeplaceDomeManuel()
-		elif CMD=b'OK':
+		elif CMD==b'OK':
 			# Passage en mode auto
 			mode=1
 	return mode
