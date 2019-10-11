@@ -46,6 +46,10 @@ DPORTESCAPTEURS=30
 DMOTEUR=40
 DABRI=22
 
+##### CLASSES #####
+class ARUExcept(Exception):
+	pass
+	
 ##### FONCTIONS #####
 def PStatus(pin):
 	if pin<16:
@@ -86,6 +90,7 @@ def TelPark():
 	return PStatus(PARK)
 
 def ARU(msg):
+	# On coupe tout
 	Pwrite(ALIMMOT,1)
 	Pwrite(ALIMTEL,1)
 	Pwrite(ALIM12,1)
@@ -95,10 +100,8 @@ def ARU(msg):
 	Prite(Pf2,1)
 	# On prévient du problème
 	Debug('ARU '+msg)
-	# TODO Attente d'une commnande de déblocage
-	while True:
-		time.sleep(0.1)
-	sys.exit(1)
+	# On leve l'exception ARUExcept
+	raise ARUExcept
 	
 def delai():
 	pass
@@ -144,6 +147,10 @@ def OuvrePorte1():
 	Pwrite(P12,0)
 	time.sleep(DPORTES)
 	Pwrite(P12,1)
+def OuvrePorte2():
+	Pwrite(P22,0)
+	time.sleep(DPORTES)
+	Pwrite(P22,1)
 	
 def CmdTelnet():
 	global conn
@@ -161,46 +168,59 @@ def EnvoiStatus(ret):
 def EnvoiMsg(ret):
 	conn.sendall(str(ret).encode('utf8'))
 	
-def EnvoiCommande(cmd):
+def EnvoiCommande(cmd,mode):
 	global CMD
 	global conn
 	CMD=CMD[:2]
 	print(CMD)
 	# Exécute la commande
-	if CMD==b'D+':
-		EnvoiStatus(OuvreDome())
-	elif CMD==b"D-":
-		EnvoiStatus(FermeDome())
-	elif CMD==b'p-':
-		FermePorte1()
-	elif CMD==b'p+':
-		OuvrePorte1()
-	elif CMD==b'P+':
-		EnvoiStatus(OuvrePortes())
-	elif CMD==b'P-':
-		EnvoiStatus(FermePortes())
-	elif CMD==b'A+':
-		StartTel()
-		EnvoiStatus(AlimStatus())
-	elif CMD==b'A-':
-		StopTel()
-		EnvoiStatus(AlimStatus())
-	elif CMD==b'A?':
-		EnvoiStatus(AlimStatus())
-	elif CMD==b'P?':
-		EnvoiStatus(PortesOuvert())
-	elif CMD==b'D?':
-		EnvoiStatus(AbriOuvert())
-	elif CMD==b'C?':
-		EnvoiStatus(AbriOuvert())
-		EnvoiStatus(AbriFerme())
-		EnvoiStatus(PortesOuvert())
-		EnvoiStatus(PortesFerme())
-		EnvoiStatus(AlimStatus())
-		if TelPark():
-			EnvoiStatus('p')
-		else:
-			EnvoiStatus('n')
+	if mode:
+		if CMD==b'D+':
+			EnvoiStatus(OuvreDome())
+		elif CMD==b"D-":
+			EnvoiStatus(FermeDome())
+		elif CMD==b'p-':
+			FermePorte1()
+		elif CMD==b'p+':
+			OuvrePorte1()
+		elif CMD==b'P+':
+			EnvoiStatus(OuvrePortes())
+		elif CMD==b'P-':
+			EnvoiStatus(FermePortes())
+		elif CMD==b'A+':
+			StartTel()
+			EnvoiStatus(AlimStatus())
+		elif CMD==b'A-':
+			StopTel()
+			EnvoiStatus(AlimStatus())
+		elif CMD==b'A?':
+			EnvoiStatus(AlimStatus())
+		elif CMD==b'P?':
+			EnvoiStatus(PortesOuvert())
+		elif CMD==b'D?':
+			EnvoiStatus(AbriOuvert())
+		elif CMD==b'C?':
+			EnvoiStatus(AbriOuvert())
+			EnvoiStatus(AbriFerme())
+			EnvoiStatus(PortesOuvert())
+			EnvoiStatus(PortesFerme())
+			EnvoiStatus(AlimStatus())
+			if TelPark():
+				EnvoiStatus('p')
+			else:
+				EnvoiStatus('n')
+	else:
+		if CMD==b'mp':
+			# Ouvre les portes
+			OuvrePorte1():
+			OuvrePorte2():
+		elif CMD==b'md':
+			# Deplace le dome
+			DeplaceDomeManuel()
+		elif CMD=b'OK':
+			# Passage en mode auto
+			mode=1
+	return mode
 	conn.close()
 
 def Debug(message):
@@ -222,9 +242,10 @@ def OuvrePortes():
 	Attend(5,1,1,0)
 	Debug('Ouverture porte 2...')
 	Pwrite(P22,0)
-	Attend(DPORTES,1,1,0)
+	Attend(DPORTESCAPTEURS,1,1,0)
 	while not PortesOuvert():
-		time.sleep(0.1)
+		Attend(0.1,1,1,0)
+	Attend(5,1,1,0)
 	Pwrite(P12,1)
 	Pwrite(P22,1)
 	Debug('Portes ouvertes')
@@ -256,12 +277,21 @@ def FermePortes():
 		Debug("Problème de fermeture des portes")
 		return 0
 	return 1
+
+def DeplaceDomeManuel():
+	StopTel()
+	StartMot()
+	Attend(DMOTEUR,False, False,False)
+	Pwrite(MOTEUR,0)
+	time.sleep(0.6)
+	Pwrite(MOTEUR,1)
+	Attend(DABRI,1,0,1)
 	
 def DeplaceDome(sens):
 	EtatAbri=AbriFerme()	# Enregistre la position actuelle de l'abri
 	if (not AbriFerme() and not AbriOuvert()) or (AbriFerme() and AbriOuvert()):
 		# Problème de capteur
-		Debug('Problème de capteur de position abri')
+		ARU('Problème de capteur de position abri')
 		return 0
 	if not TelPark():
 		# Télescope non parqué
@@ -276,7 +306,7 @@ def DeplaceDome(sens):
 	elif not MoteurStatus():
 		StartMot()
 		Attend(DMOTEUR,True, False,False)
-	OuvrePortes()
+	#OuvrePortes()
 	Debug('Demarrage moteur')
 	Pwrite(MOTEUR,0)
 	time.sleep(0.6)
@@ -370,16 +400,21 @@ if AbriOuvert():
 	StartTel()
 	StartMot()
 ##### BOUCLE PRINCIPALE #####
-
+mode=1		# 1: mode auto, 0: mode manuel
 while True:
 	try:
 		CMD = CmdTelnet()
 		if CMD !='':
-			EnvoiCommande(CMD)
+			mode=EnvoiCommande(CMD,mode)
 			# MAJEtatPark() # Interruption ?
 			# Dome bouge ?
-			# Bouton arret d'urgence'
+			if not AbriOuvert() and not AbriFerme():
+				ARU("Erreur de position Abri")
+			# TODO Bouton arret d'urgence
 	except KeyboardInterrupt:
 		raise
+	except ARUExcept:
+		# Arret d'urgence
+		mode=0	# Passage en mode manuel
 	time.sleep(0.5)
 
