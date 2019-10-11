@@ -14,12 +14,23 @@ import sys
 import socket
 import time
 import threading
+from rpi_TM1638 import TMBoards
+
+# TM1638
+DIO=19
+CLK=13
+STB=6
+
+TM=TMBoards(DIO, CLK, STB, 0)
+
+CMD=''
+SERIAL="/dev/MySensors"
+FIRMATA="/dev/Firmata"
+
 # Firmata
 from pymata_aio.pymata3 import PyMata3
 from pymata_aio.constants import Constants
-board = PyMata3(com_port='/dev/ttyUSB1')
-
-CMD=''
+board = PyMata3(com_port=FIRMATA)
 
 # Entrées/sorties
 AO=17	#A1
@@ -128,7 +139,6 @@ def Attend(delai,park,depl,porte):
 				nbpos=0
 			if nbpos > errmax:	
 				ARU('Erreur position abri')
-		# TODO Décommenter quand les capteurs portes seront cablés
 		if porte:
 			if not PortesOuvert():
 				nbporte+=1
@@ -136,6 +146,10 @@ def Attend(delai,park,depl,porte):
 				nbporte=0
 			if nbporte > errmax:
 				ARU('Erreur portes')
+		# Verification d'une commande ARU (AU#)
+		CMD = LireCMD()
+		if CMD =='AU':
+			ARU("Demande arret d'urgence")
 		time.sleep(0.1)
 		
 def FermePorte1():
@@ -151,7 +165,7 @@ def OuvrePorte2():
 	Pwrite(P22,0)
 	time.sleep(DPORTES)
 	Pwrite(P22,1)
-	
+
 def CmdTelnet():
 	global conn
 	try:
@@ -161,14 +175,26 @@ def CmdTelnet():
 		return ''
 	else:
 		return CMD
-				
+def CmdSerial():
+	pass
+def CmdButtons():
+	pass
+def LireCMD():
+	CMD=CmdSerial()
+	if not CMD:
+		# Lecture du port réseau
+		CMD=CmdTelnet()
+		if not CMD:
+			# Lecture du/des clavier(s)
+			CMD=CmdButtons()
+	return CMD
+
 def EnvoiStatus(ret):
 	conn.sendall(str(int(ret)).encode('utf8'))
-
 def EnvoiMsg(ret):
 	conn.sendall(str(ret).encode('utf8'))
 	
-def EnvoiCommande(cmd,mode):
+def EnvoiCommande(cmd,mode):	# cmd: commande reçue, mode: 1: auto, 0: manuel
 	global CMD
 	global conn
 	CMD=CMD[:2]
@@ -287,7 +313,7 @@ def DeplaceDomeManuel():
 	Pwrite(MOTEUR,1)
 	Attend(DABRI,1,0,1)
 	
-def DeplaceDome(sens):
+def DeplaceDome(sens):	# 0: Ferme le dome, 1: Ouvre le dome
 	EtatAbri=AbriFerme()	# Enregistre la position actuelle de l'abri
 	if (not AbriFerme() and not AbriOuvert()) or (AbriFerme() and AbriOuvert()):
 		# Problème de capteur
@@ -386,6 +412,9 @@ Pinit(Pf1,Constants.PULLUP)
 Pinit(Pf2,Constants.PULLUP)
 Pinit(PARK-16,Constants.ANALOG)
 
+TM.clearDisplay()
+#TM.segments[0]="START   "
+
 # Socket de communication réseau
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -394,6 +423,8 @@ s.listen(1)
 s.setblocking(0)
 
 Debug('Fin setup.')
+TM.segments[0]="On      "
+TM.leds[0]=1
 
 # Etat du dome initialisation des interrupteurs
 if AbriOuvert():
@@ -403,7 +434,7 @@ if AbriOuvert():
 mode=1		# 1: mode auto, 0: mode manuel
 while True:
 	try:
-		CMD = CmdTelnet()
+		CMD = LireCMD()
 		if CMD !='':
 			mode=EnvoiCommande(CMD,mode)
 			# MAJEtatPark() # Interruption ?
