@@ -23,14 +23,14 @@ CMD=''
 PORTEOUV=False
 
 # Entrées/sorties
-AO=17	#A1
-AF=16	#A0
-Po1=18	#A2
-Po2=19	#A3
-Pf1=20	#A4
-Pf2=21	#A5
+AO=14	#A1 16
+AF=15	#A0 17
+Po1=16	#A2 18
+Po2=17	#A3 19
+Pf1=18	#A4 20
+Pf2=19	#A5 21
 
-PARK = 22	#A6
+PARK = 21	#A6
 
 MOTEUR=11	#D11
 ALIMMOT=10	#D10
@@ -49,9 +49,9 @@ DABRI=22
 
 ##### FONCTIONS #####
 def PStatus(pin):
-	if pin<16:
+	if pin<14:
 		return board.get_pin_state(pin)[2]
-	elif pin > 21:
+	elif pin > 19:
 		if board.analog_read(pin-16)> 300:
 			return True
 		else:
@@ -102,8 +102,8 @@ def ARU(msg):
 	
 def delai():
 	pass
-def Attend(delai,park,depl,porte):
-	t=threading.Timer(delai)
+def Attend(duree,park,depl,porte):
+	t=threading.Timer(duree,delai)
 	t.start()
 	nbpark=0
 	nbpos=0
@@ -195,12 +195,12 @@ def EnvoiCommande(cmd):
 		EnvoiStatus(AbriOuvert())
 		EnvoiStatus(AbriFerme())
 		EnvoiStatus(PortesOuvert())
-		EnvoiStatus(PortesFerme())
+		EnvoiStatus(PorteFerme())
 		EnvoiStatus(AlimStatus())
 		if TelPark:
-			EnvoiStatus('p')
+			EnvoiMsg('p')
 		else:
-			EnvoiStatus('n')
+			EnvoiMsg('n')
 	conn.close()
 
 def Debug(message):
@@ -276,7 +276,8 @@ def DeplaceDome(sens):
 	Attend(DABRI,1,0,1)
 	while (not AbriOuvert() and not AbriFerme()):
 		Attend(1,True, False, True)
-	if EtatAbri==AbriOuvert():
+	if EtatAbri==AbriFerme():
+                # TODO Si le dome était ouvert à la mise sous tension, il ne bouge pas. Retenter un 2e déplacement
 		Debug("L'abri ne s'est pas déplacé")
 		return 0
 	elif AbriOuvert() or AbriFerme():
@@ -339,7 +340,7 @@ Pwrite(P22,1)
 Pinit(P22,Constants.OUTPUT)
 
 # Entrées 
-Pinit(A0,Constants.PULLUP)
+Pinit(AO,Constants.PULLUP)
 Pinit(AF,Constants.PULLUP)
 Pinit(Po1,Constants.PULLUP)
 Pinit(Po2,Constants.PULLUP)
