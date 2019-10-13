@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 # -*- encoding: utf8 -*-
 
-
 # Pilotage automatique de l'abri du télescope.
 # Serge CLAUS
 # GPL V3
