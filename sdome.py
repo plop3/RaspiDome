@@ -25,8 +25,8 @@ PORTEOUV=False
 AO=14	#A1 16
 AF=15	#A0 17
 Po1=16	#A2 18
-Po2=17	#A3 19
-Pf1=18	#A4 20
+Po2=18	#A3 20
+Pf1=17	#A4 19
 Pf2=19	#A5 21
 
 PARK = 21	#A6
@@ -77,7 +77,7 @@ def StopMot():
 def PortesOuvert():
 	return not PStatus(Po1) and not PStatus(Po2)
 def PorteFerme():
-	return not PStatus(Pf1)	# Pas de capteur sur la porte 2 pour l'instant
+	return not PStatus(Pf2)	# Pas de capteur sur la porte 1 pour l'instant
 def AbriOuvert():
 	return not PStatus(AO)
 def AbriFerme():
