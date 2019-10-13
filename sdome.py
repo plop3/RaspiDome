@@ -5,7 +5,7 @@
 # Pilotage automatique de l'abri du télescope.
 # Serge CLAUS
 # GPL V3
-# Version 1.0.0
+# Version 1.0.1
 # 30/09/2019
 # Version python3 pour Raspberry PI
 
