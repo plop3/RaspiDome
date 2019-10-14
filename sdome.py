@@ -4,8 +4,8 @@
 # Pilotage automatique de l'abri du télescope.
 # Serge CLAUS
 # GPL V3
-# Version 1.0.1
-# 30/09/2019
+# Version 1.0.2
+# 30/09/2019 - 14/10/2019
 # Version python3 pour Raspberry PI
 
 ##### MODULES EXTERNES #####
@@ -16,10 +16,28 @@ import threading
 # Firmata
 from pymata_aio.pymata3 import PyMata3
 from pymata_aio.constants import Constants
+
+from rpi_TM1638 import TMBoards
+
 board = PyMata3(com_port='/dev/Firmata')
+SERIAL="/dev/MySensors"
 
 CMD=''
-PORTEOUV=False
+
+# TM1638
+DIO=19
+CLK=13
+STB=6
+
+TM=TMBoards(DIO, CLK, STB, 0)
+
+#Adresses I2c
+#26 	LCD
+#27		Clavier matriciel 4x4
+
+APA=18		# LEDs néopixel
+LCDBCK=4	# Rétro-éclairage LCD
+BUZZER=22 	# ou 23 /!\ Pas de Pwm (1 seul canal dispo pour le backlight LCD)
 
 # Entrées/sorties
 AO=14	#A1 16
@@ -46,6 +64,10 @@ DPORTESCAPTEURS=30
 DMOTEUR=40
 DABRI=22
 
+##### CLASSES #####
+class ARUExcept(Exception):
+	pass
+	
 ##### FONCTIONS #####
 def PStatus(pin):
 	if pin<14:
@@ -96,9 +118,8 @@ def ARU(msg):
 	# On prévient du problème
 	Debug('ARU '+msg)
 	# TODO Attente d'une commnande de déblocage
-	while True:
-		time.sleep(0.1)
-	
+	raise ARUExcept
+
 def delai():
 	pass
 def Attend(duree,park,depl,porte):
@@ -132,6 +153,8 @@ def Attend(duree,park,depl,porte):
 		#		nbporte=0
 		#	if nbporte > errmax:
 		#		ARU('Erreur portes')
+		
+		# TODO Verification d'une commande ARU (AU#)
 		time.sleep(0.1)
 		
 def FermePorte1():
@@ -200,6 +223,7 @@ def EnvoiCommande(cmd):
 			EnvoiMsg('p')
 		else:
 			EnvoiMsg('n')
+	CMD=''
 	conn.close()
 
 def Debug(message):
@@ -207,8 +231,7 @@ def Debug(message):
 	print(message)
 	
 def OuvrePortes():
-	global PORTEOUV
-	if PORTEOUV:
+	if PortesOuvert():
 		# Les portes sont déjà ouvertes
 		return 0
 	if not AbriFerme() and not AbriOuvert():
@@ -222,16 +245,17 @@ def OuvrePortes():
 	Attend(5,1,1,0)
 	Debug('Ouverture porte 2...')
 	Pwrite(P22,0)
-	Attend(DPORTES,1,1,0)
+	Attend(DPORTESCAPTEURS,1,1,0)
+	while not PortesOuvert():
+		Attend(0.5,1,1,0)
+	Attend(5,1,1,0)
 	Pwrite(P12,1)
 	Pwrite(P22,1)
 	Debug('Portes ouvertes')
-	PORTEOUV=True
 	return 1
 	
 def FermePortes():
-	global PORTEOUV
-	if not PORTEOUV:
+	if not PortesOuvert():
 		Debug('Portes déjà fermées')
 		# Les portes sont déjà fermées
 		return 0
@@ -251,7 +275,6 @@ def FermePortes():
 	Debug('Portes fermées')
 	Pwrite(P11,1)
 	Pwrite(P21,1)
-	PORTEOUV=False
 	return 1
 	
 def DeplaceDome(sens):
@@ -266,17 +289,29 @@ def DeplaceDome(sens):
 		Debug('Télescope non parqué')
 		return 0
 	StopTel()
-	StartMot()
-	OuvrePortes()
+	if not PortesOuvert():
+		if not MoteurStatus():
+			StartMot()
+		OuvrePortes()
+	elif not MoteurStatus():
+		StartMot()
+		Attend(DMOTEUR,True, False,False)
+	#OuvrePortes()
 	Debug('Demarrage moteur')
 	Pwrite(MOTEUR,0)
 	time.sleep(0.6)
 	Pwrite(MOTEUR,1)
-	Attend(DABRI,1,0,1)
+	Attend(DABRI/3,1,0,1)	# Déplacement de 1/3 du temps total
+	if AbriOuvert() or AbriFerme():
+		Debug("Relance commande moteur abri")
+		# Ca n'a pas bougé, on relance la commande
+		Pwrite(MOTEUR,0)
+		time.sleep(0.6)
+		Pwrite(MOTEUR,1)
+	Attend(DABRI*2/3,1,0,1)	# On fini le déplacement (2/3 du temps total)
 	while (not AbriOuvert() and not AbriFerme()):
 		Attend(1,True, False, True)
 	if EtatAbri==AbriFerme():
-                # TODO Si le dome était ouvert à la mise sous tension, il ne bouge pas. Retenter un 2e déplacement
 		Debug("L'abri ne s'est pas déplacé")
 		return 0
 	elif AbriOuvert() or AbriFerme():
@@ -291,9 +326,9 @@ def OuvreDome():
 	if AbriOuvert():
 		Debug('Erreur: Abri déjà ouvert')
 		return 0
-	StartTel()
 	if DeplaceDome(True):
 		Debug('Dome ouvert')
+		StartTel()
 		return 1
 	else:
 		Debug("Problème déplacement dome")
@@ -305,10 +340,10 @@ def FermeDome():
 	if AbriFerme():
 		Debug('Erreur: Abri déjà fermé')
 		return 0
+	StopTel()
 	if DeplaceDome(False):
 		StopMot()
 		FermePortes()
-		StopTel()
 		Debug('Dome fermé')
 		return 1
 	else:
@@ -347,6 +382,9 @@ Pinit(Pf1,Constants.PULLUP)
 Pinit(Pf2,Constants.PULLUP)
 Pinit(PARK-16,Constants.ANALOG)
 
+TM.clearDisplay()
+#TM.segments[0]="START   "
+
 # Socket de communication réseau
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -355,6 +393,8 @@ s.listen(1)
 s.setblocking(0)
 
 Debug('Fin setup.')
+TM.segments[0]="On      "
+TM.leds[0]=1
 
 # Etat du dome initialisation des interrupteurs
 if AbriOuvert():
@@ -368,9 +408,13 @@ while True:
 		if CMD !='':
 			EnvoiCommande(CMD)
 			# MAJEtatPark() # Interruption ?
-			# Dome bouge ?
+			if not AbriOuvert() and not AbriFerme():
+				ARU("Erreur de position Abri")
 			# Bouton arret d'urgence'
 	except KeyboardInterrupt:
 		raise
+	except ARUExcept:
+		# Arret d'urgence
+		# TODO A gérer, pour l'instant ne fait rien...
 	time.sleep(0.5)
 
