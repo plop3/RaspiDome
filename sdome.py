@@ -10,7 +10,7 @@
 
 ##### MODULES EXTERNES #####
 import sys
-import socket
+import socketserver
 import time
 import threading
 # Firmata
@@ -23,6 +23,7 @@ board = PyMata3(com_port='/dev/Firmata')
 SERIAL="/dev/MySensors"
 
 DEPLACEMENT=False
+ARRETURG=False
 
 # TM1638
 DIO=19
@@ -167,6 +168,16 @@ def OuvrePorte1():
 	time.sleep(DPORTES)
 	Pwrite(P12,1)
 
+def FermePorte2():
+	Pwrite(P21,0)
+	time.sleep(DPORTES)
+	Pwrite(P21,1)
+	
+def OuvrePorte2():
+	Pwrite(P22,0)
+	time.sleep(DPORTES)
+	Pwrite(P22,1)
+	
 class LireCmd(socketserver.StreamRequestHandler):
     def handle(self):
         CMD=self.rfile.readline().strip()                                                                                                   
@@ -190,31 +201,43 @@ def EnvoiCommande(cmd):
 	CMD=cmd[:2]
 	print(CMD)
 	# Exécute la commande
-	if CMD==b'D+':
-		return OuvreDome()
-	elif CMD==b"D-":
-		return FermeDome()
-	elif CMD==b'p-':
-		return FermePorte1()
-	elif CMD==b'p+':
-		return OuvrePorte1()
-	elif CMD==b'P+':
-		return OuvrePortes()
-	elif CMD==b'P-':
-		return FermePortes()
-	elif CMD==b'A+':
-		StartTel()
-		return AlimStatus()
-	elif CMD==b'A-':
-		StopTel()
-		return AlimStatus()
-	elif CMD==b'A?':
-		return AlimStatus()
-	elif CMD==b'P?':
-		return PortesOuvert()
-	elif CMD==b'D?':
-		return AbriOuvert()
-	elif CMD==b'C?':
+	if  not ARRETURG:	
+		# Commande en mode automatique 
+		if CMD==b'AU':	# Arret d'urgence
+			return ARU()
+		if CMD==b'D+':
+			return OuvreDome()
+		elif CMD==b"D-":
+			return FermeDome()
+		elif CMD==b'A+':
+			StartTel()
+			return AlimStatus()
+		elif CMD==b'P+':
+			return OuvrePortes()
+		elif CMD==b'P-':
+			return FermePortes()
+	else:	
+
+		# Commandes seulement en arret d'urgence
+		if CMD==b'OK':
+			ARRETURG=False
+			return 1
+		elif CMD==b'pp':
+			return OuvrePorte2()
+		elif CMD==b'pm':
+			return FermePorte2()
+		if CMD==b'dd':
+			return DeplaceDomeARU()
+		elif CMD==b"m+":
+			return StartMot()
+		elif CMD==b"m-":
+			return StopMot()
+		elif CMD==b'a+':
+			StartTel()
+			return AlimStatus()
+
+	# Commandes en manuel et auto
+	if CMD==b'C?':
 		Rep=str(AbriOuvert()))
 		Rep=Rep+str(AbriFerme())
 		Rep=Rep+str(PortesOuvert())
@@ -224,7 +247,20 @@ def EnvoiCommande(cmd):
 			Rep=Rep+('p')
 		else:
 			Rep=Rep+('n')
-		return Rep
+		return Rep	
+	elif CMD==b'A?':
+		return AlimStatus()
+	elif CMD==b'P?':
+		return PortesOuvert()
+	elif CMD==b'D?':
+		return AbriOuvert()		
+	elif CMD==b'p-':
+		return FermePorte1()
+	elif CMD==b'p+':
+		return OuvrePorte1()
+	elif CMD==b'A-':
+		StopTel()
+		return AlimStatus()
 
 def Debug(message):
 	# Affiche les informations
@@ -276,6 +312,10 @@ def FermePortes():
 	Pwrite(P11,1)
 	Pwrite(P21,1)
 	return 1
+	
+def DeplaceDomeARU():
+	# /!\ Attention aucune sécurité !!!
+	Debug("/!\ Déplacement manuel du dome")
 	
 def DeplaceDome(sens):
 	global DEPLACEMENT
@@ -405,12 +445,13 @@ if AbriOuvert():
 while True:
 	# MAJEtatPark() # Interruption ?
 	# /!\ TODO ne pas surveiller pendant le déplacement
-	if not DEPLACEMENT and not AbriOuvert() and not AbriFerme():
+	if not ARRETURG and not DEPLACEMENT and not AbriOuvert() and not AbriFerme():
 		ARU("Erreur de position Abri")
 	# TODO Bouton arret d'urgence'
 	except KeyboardInterrupt:
 		raise
 	except ARUExcept:
+		ARRETURG=True
 		pass
 		# Arret d'urgence
 		# TODO A gérer, pour l'instant ne fait rien...
