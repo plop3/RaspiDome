@@ -10,7 +10,8 @@
 
 ##### MODULES EXTERNES #####
 import sys
-import socketserver
+import socket
+import select
 import time
 import threading
 # Firmata
@@ -22,6 +23,7 @@ from rpi_TM1638 import TMBoards
 board = PyMata3(com_port='/dev/Firmata')
 SERIAL="/dev/MySensors"
 
+CMD=''
 DEPLACEMENT=False
 ARRETURG=False
 
@@ -162,35 +164,26 @@ def FermePorte1():
 	Pwrite(P11,0)
 	time.sleep(DPORTES)
 	Pwrite(P11,1)
+	return 1
 	
 def OuvrePorte1():
 	Pwrite(P12,0)
 	time.sleep(DPORTES)
 	Pwrite(P12,1)
+	return 1
 
 def FermePorte2():
 	Pwrite(P21,0)
 	time.sleep(DPORTES)
 	Pwrite(P21,1)
+	return 1
 	
 def OuvrePorte2():
 	Pwrite(P22,0)
 	time.sleep(DPORTES)
 	Pwrite(P22,1)
+	return 1
 	
-class LireCmd(socketserver.StreamRequestHandler):
-    def handle(self):
-        CMD=self.rfile.readline().strip()                                                                                                   
-        ret=EnvoiCommande(CMD)
-		if isinstance(ret, bool):
-			ret=int(ret)
-		ret=str(ret).encode('utf8')
-        self.wfile.write(ret)
-	
-def CmdTelnet():
-	s=socketserver.TCPServer(('', 2468), LireCmd)
-	s.serve_forever()
-				
 def EnvoiStatus(ret):
 	conn.sendall(str(int(ret)).encode('utf8'))
 
@@ -198,6 +191,7 @@ def EnvoiMsg(ret):
 	conn.sendall(str(ret).encode('utf8'))
 	
 def EnvoiCommande(cmd):
+	global ARRETURG
 	CMD=cmd[:2]
 	print(CMD)
 	# Exécute la commande
@@ -238,11 +232,11 @@ def EnvoiCommande(cmd):
 
 	# Commandes en manuel et auto
 	if CMD==b'C?':
-		Rep=str(AbriOuvert()))
-		Rep=Rep+str(AbriFerme())
-		Rep=Rep+str(PortesOuvert())
-		Rep=Rep+str(PorteFerme())
-		Rep=Rep+str(AlimStatus())
+		Rep=str(int(AbriOuvert()))
+		Rep=Rep+str(int(AbriFerme()))
+		Rep=Rep+str(int(PortesOuvert()))
+		Rep=Rep+str(int(PorteFerme()))
+		Rep=Rep+str(int(AlimStatus()))
 		if TelPark:
 			Rep=Rep+('p')
 		else:
@@ -428,9 +422,12 @@ Pinit(PARK-14,Constants.ANALOG)
 TM.clearDisplay()
 #TM.segments[0]="START   "
 
-# Thread de lecture des infos en provenance du réseau
-tnet=threading.Thread(target=CmdTelnet)                                                                                                     
-tnet.start()                                                                                                                                
+# Serveur TCP
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(('',1234))
+s.listen(1)
+#s.setblocking(0)
 
 Debug('Fin setup.')
 TM.segments[0]="On      "
@@ -442,12 +439,53 @@ if AbriOuvert():
 	StartMot()
 ##### BOUCLE PRINCIPALE #####
 
+
+
 while True:
 	# MAJEtatPark() # Interruption ?
-	# /!\ TODO ne pas surveiller pendant le déplacement
-	if not ARRETURG and not DEPLACEMENT and not AbriOuvert() and not AbriFerme():
-		ARU("Erreur de position Abri")
-	# TODO Bouton arret d'urgence'
+	try:
+#############################################################
+		clients_connectes = []
+		connexions_demandees, wlist, xlist = select.select([s], [], [], 0.05)
+		for connexion in connexions_demandees:
+			connexion_avec_client, infos_connexion = connexion.accept()
+			# On ajoute le socket connecté à la liste des clients
+			clients_connectes.append(connexion_avec_client)
+		
+		# Maintenant, on écoute la liste des clients connectés
+		# Les clients renvoyés par select sont ceux devant être lus (recv)
+		# On attend là encore 50ms maximum
+		# On enferme l'appel à select.select dans un bloc try
+		# En effet, si la liste de clients connectés est vide, une exception
+		# Peut être levée
+		clients_a_lire = []
+		
+		try:
+			clients_a_lire, wlist, xlist = select.select(clients_connectes,	[], [], 0.05)
+		except select.error:
+			pass
+		else:
+			for client in clients_a_lire:
+				print('***')
+				# Client est de type socket
+				CMD = client.recv(1024)
+				# Peut planter si le message contient des caractères spéciaux
+				#msg_recu = msg_recu.decode()
+				ret=EnvoiCommande(CMD)
+				if isinstance(ret, bool):
+					ret=int(ret)
+				ret=str(ret).encode('utf8')
+				print('retour: ',ret)
+				client.send(ret)
+			#for client in clients_connectes:
+				client.close()
+
+			#s.close()
+#############################################################
+		
+		if not ARRETURG and not DEPLACEMENT and not AbriOuvert() and not AbriFerme():
+			ARU("Erreur de position Abri")
+		# TODO Bouton arret d'urgence'
 	except KeyboardInterrupt:
 		raise
 	except ARUExcept:
