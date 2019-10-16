@@ -73,7 +73,7 @@ def PStatus(pin):
 	if pin<14:
 		return board.get_pin_state(pin)[2]
 	elif pin > 19:
-		if board.analog_read(pin-16)> 300:
+		if board.analog_read(pin-14)> 300:
 			return True
 		else:
 			return False
@@ -111,10 +111,10 @@ def ARU(msg):
 	Pwrite(ALIMMOT,1)
 	Pwrite(ALIMTEL,1)
 	Pwrite(ALIM12,1)
-	Prite(Po1,1)
-	Prite(Po2,1)
-	Prite(Pf1,1)
-	Prite(Pf2,1)
+	Pwrite(Po1,1)
+	Pwrite(Po2,1)
+	Pwrite(Pf1,1)
+	Pwrite(Pf2,1)
 	# On prévient du problème
 	Debug('ARU '+msg)
 	# TODO Attente d'une commnande de déblocage
@@ -383,7 +383,7 @@ Pinit(Po1,Constants.PULLUP)
 Pinit(Po2,Constants.PULLUP)
 Pinit(Pf1,Constants.PULLUP)
 Pinit(Pf2,Constants.PULLUP)
-Pinit(PARK-16,Constants.ANALOG)
+Pinit(PARK-14,Constants.ANALOG)
 
 TM.clearDisplay()
 #TM.segments[0]="START   "
