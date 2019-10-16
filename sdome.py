@@ -407,10 +407,11 @@ while True:
 	# /!\ TODO ne pas surveiller pendant le déplacement
 	if not DEPLACEMENT and not AbriOuvert() and not AbriFerme():
 		ARU("Erreur de position Abri")
-	# Bouton arret d'urgence'
+	# TODO Bouton arret d'urgence'
 	except KeyboardInterrupt:
 		raise
 	except ARUExcept:
+		pass
 		# Arret d'urgence
 		# TODO A gérer, pour l'instant ne fait rien...
 	time.sleep(0.5)
