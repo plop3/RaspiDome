@@ -4,7 +4,7 @@
 # Pilotage automatique de l'abri du télescope.
 # Serge CLAUS
 # GPL V3
-# Version 1.0.2
+# Version 1.0.3
 # 30/09/2019 - 14/10/2019
 # Version python3 pour Raspberry PI
 
@@ -22,7 +22,7 @@ from rpi_TM1638 import TMBoards
 board = PyMata3(com_port='/dev/Firmata')
 SERIAL="/dev/MySensors"
 
-CMD=''
+DEPLACEMENT=False
 
 # TM1638
 DIO=19
@@ -166,16 +166,19 @@ def OuvrePorte1():
 	Pwrite(P12,0)
 	time.sleep(DPORTES)
 	Pwrite(P12,1)
+
+class LireCmd(socketserver.StreamRequestHandler):
+    def handle(self):
+        CMD=self.rfile.readline().strip()                                                                                                   
+        ret=EnvoiCommande(CMD)
+		if isinstance(ret, bool):
+			ret=int(ret)
+		ret=str(ret).encode('utf8')
+        self.wfile.write(ret)
 	
 def CmdTelnet():
-	global conn
-	try:
-		conn, addr = s.accept()
-		CMD = conn.recv(32)
-	except BlockingIOError:
-		return ''
-	else:
-		return CMD
+	s=socketserver.TCPServer(('', 2468), LireCmd)
+	s.serve_forever()
 				
 def EnvoiStatus(ret):
 	conn.sendall(str(int(ret)).encode('utf8'))
@@ -184,47 +187,44 @@ def EnvoiMsg(ret):
 	conn.sendall(str(ret).encode('utf8'))
 	
 def EnvoiCommande(cmd):
-	global CMD
-	global conn
-	CMD=CMD[:2]
+	CMD=cmd[:2]
 	print(CMD)
 	# Exécute la commande
 	if CMD==b'D+':
-		EnvoiStatus(OuvreDome())
+		return OuvreDome()
 	elif CMD==b"D-":
-		EnvoiStatus(FermeDome())
+		return FermeDome()
 	elif CMD==b'p-':
-		FermePorte1()
+		return FermePorte1()
 	elif CMD==b'p+':
-		OuvrePorte1()
+		return OuvrePorte1()
 	elif CMD==b'P+':
-		EnvoiStatus(OuvrePortes())
+		return OuvrePortes()
 	elif CMD==b'P-':
-		EnvoiStatus(FermePortes())
+		return FermePortes()
 	elif CMD==b'A+':
 		StartTel()
-		EnvoiStatus(AlimStatus())
+		return AlimStatus()
 	elif CMD==b'A-':
 		StopTel()
-		EnvoiStatus(AlimStatus())
+		return AlimStatus()
 	elif CMD==b'A?':
-		EnvoiStatus(AlimStatus())
+		return AlimStatus()
 	elif CMD==b'P?':
-		EnvoiStatus(PortesOuvert())
+		return PortesOuvert()
 	elif CMD==b'D?':
-		EnvoiStatus(AbriOuvert())
+		return AbriOuvert()
 	elif CMD==b'C?':
-		EnvoiStatus(AbriOuvert())
-		EnvoiStatus(AbriFerme())
-		EnvoiStatus(PortesOuvert())
-		EnvoiStatus(PorteFerme())
-		EnvoiStatus(AlimStatus())
+		Rep=str(AbriOuvert()))
+		Rep=Rep+str(AbriFerme())
+		Rep=Rep+str(PortesOuvert())
+		Rep=Rep+str(PorteFerme())
+		Rep=Rep+str(AlimStatus())
 		if TelPark:
-			EnvoiMsg('p')
+			Rep=Rep+('p')
 		else:
-			EnvoiMsg('n')
-	CMD=''
-	conn.close()
+			Rep=Rep+('n')
+		return Rep
 
 def Debug(message):
 	# Affiche les informations
@@ -278,6 +278,7 @@ def FermePortes():
 	return 1
 	
 def DeplaceDome(sens):
+	global DEPLACEMENT
 	EtatAbri=AbriFerme()	# Enregistre la position actuelle de l'abri
 	if (not AbriFerme() and not AbriOuvert()) or (AbriFerme() and AbriOuvert()):
 		# Problème de capteur
@@ -297,6 +298,7 @@ def DeplaceDome(sens):
 		StartMot()
 		Attend(DMOTEUR,True, False,False)
 	#OuvrePortes()
+	DEPLACEMENT=True
 	Debug('Demarrage moteur')
 	Pwrite(MOTEUR,0)
 	time.sleep(0.6)
@@ -311,6 +313,7 @@ def DeplaceDome(sens):
 	Attend(DABRI*2/3,1,0,1)	# On fini le déplacement (2/3 du temps total)
 	while (not AbriOuvert() and not AbriFerme()):
 		Attend(1,True, False, True)
+	DEPLACEMENT=False
 	if EtatAbri==AbriFerme():
 		Debug("L'abri ne s'est pas déplacé")
 		return 0
@@ -385,12 +388,9 @@ Pinit(PARK-16,Constants.ANALOG)
 TM.clearDisplay()
 #TM.segments[0]="START   "
 
-# Socket de communication réseau
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-s.bind(('',1234))
-s.listen(1)
-s.setblocking(0)
+# Thread de lecture des infos en provenance du réseau
+tnet=threading.Thread(target=CmdTelnet)                                                                                                     
+tnet.start()                                                                                                                                
 
 Debug('Fin setup.')
 TM.segments[0]="On      "
@@ -403,14 +403,11 @@ if AbriOuvert():
 ##### BOUCLE PRINCIPALE #####
 
 while True:
-	try:
-		CMD = CmdTelnet()
-		if CMD !='':
-			EnvoiCommande(CMD)
-			# MAJEtatPark() # Interruption ?
-			if not AbriOuvert() and not AbriFerme():
-				ARU("Erreur de position Abri")
-			# Bouton arret d'urgence'
+	# MAJEtatPark() # Interruption ?
+	# /!\ TODO ne pas surveiller pendant le déplacement
+	if not DEPLACEMENT and not AbriOuvert() and not AbriFerme():
+		ARU("Erreur de position Abri")
+	# Bouton arret d'urgence'
 	except KeyboardInterrupt:
 		raise
 	except ARUExcept:
