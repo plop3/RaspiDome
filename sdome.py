@@ -4,12 +4,11 @@
 # Pilotage automatique de l'abri du télescope.
 # Serge CLAUS
 # GPL V3
-# Version 1.0.4
-# 30/09/2019 - 14/10/2019
+# Version 1.0.5
+# 30/09/2019 - 17/10/2019
 # Version python3 pour Raspberry PI
 
 ##### MODULES EXTERNES #####
-import sys
 import socket
 import select
 import time
@@ -17,13 +16,12 @@ import threading
 # Firmata
 from pymata_aio.pymata3 import PyMata3
 from pymata_aio.constants import Constants
-
+# TM1638
 from rpi_TM1638 import TMBoards
 
 board = PyMata3(com_port='/dev/Firmata')
 SERIAL="/dev/MySensors"
 
-CMD=''
 DEPLACEMENT=False
 ARRETURG=False
 
@@ -120,7 +118,7 @@ def ARU(msg):
 	Pwrite(Pf2,1)
 	# On prévient du problème
 	Debug('ARU '+msg)
-	# TODO Attente d'une commnande de déblocage
+	TM.segments[0]="Aru     "
 	raise ARUExcept
 
 def delai():
@@ -148,14 +146,13 @@ def Attend(duree,park,depl,porte):
 				nbpos=0
 			if nbpos > errmax:	
 				ARU('Erreur position abri')
-		# TODO Décommenter quand les capteurs portes seront cablés
-		#if porte:
-		#	if not PortesOuvert():
-		#		nbporte+=1
-		#	else:
-		#		nbporte=0
-		#	if nbporte > errmax:
-		#		ARU('Erreur portes')
+		if porte:
+			if not PortesOuvert():
+				nbporte+=1
+			else:
+				nbporte=0
+			if nbporte > errmax:
+				ARU('Erreur portes')
 		
 		# TODO Verification d'une commande ARU (AU#)
 		time.sleep(0.1)
@@ -437,10 +434,8 @@ TM.leds[0]=1
 if AbriOuvert():
 	StartTel()
 	StartMot()
+
 ##### BOUCLE PRINCIPALE #####
-
-
-
 while True:
 	# MAJEtatPark() # Interruption ?
 	try:
@@ -452,35 +447,23 @@ while True:
 			# On ajoute le socket connecté à la liste des clients
 			clients_connectes.append(connexion_avec_client)
 		
-		# Maintenant, on écoute la liste des clients connectés
-		# Les clients renvoyés par select sont ceux devant être lus (recv)
-		# On attend là encore 50ms maximum
-		# On enferme l'appel à select.select dans un bloc try
-		# En effet, si la liste de clients connectés est vide, une exception
-		# Peut être levée
 		clients_a_lire = []
-		
 		try:
 			clients_a_lire, wlist, xlist = select.select(clients_connectes,	[], [], 0.05)
 		except select.error:
 			pass
 		else:
 			for client in clients_a_lire:
-				print('***')
 				# Client est de type socket
 				CMD = client.recv(1024)
-				# Peut planter si le message contient des caractères spéciaux
-				#msg_recu = msg_recu.decode()
+				#CMD = CMD.decode()
 				ret=EnvoiCommande(CMD)
 				if isinstance(ret, bool):
 					ret=int(ret)
 				ret=str(ret).encode('utf8')
 				print('retour: ',ret)
 				client.send(ret)
-			#for client in clients_connectes:
 				client.close()
-
-			#s.close()
 #############################################################
 		
 		if not ARRETURG and not DEPLACEMENT and not AbriOuvert() and not AbriFerme():
@@ -489,9 +472,6 @@ while True:
 	except KeyboardInterrupt:
 		raise
 	except ARUExcept:
-		ARRETURG=True
-		pass
 		# Arret d'urgence
-		# TODO A gérer, pour l'instant ne fait rien...
+		ARRETURG=True
 	time.sleep(0.5)
-
