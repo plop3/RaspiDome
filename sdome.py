@@ -195,7 +195,7 @@ def EnvoiCommande(cmd):
 	if  not ARRETURG:	
 		# Commande en mode automatique 
 		if CMD==b'AU':	# Arret d'urgence
-			return ARU()
+			return ARU('ARU demandé')
 		if CMD==b'D+':
 			return OuvreDome()
 		elif CMD==b"D-":
